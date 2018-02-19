@@ -386,9 +386,14 @@ program main
              Ice_ocean_boundary% mh_flux(isc:iec,jsc:jec),          &
              Ice_ocean_boundary% wfimelt(isc:iec,jsc:jec),          &
              Ice_ocean_boundary% wfiform(isc:iec,jsc:jec))
-#if defined ACCESS_CM
-    allocate(Ice_ocean_boundary%co2(isc:iec,jsc:jec),               &
-             Ice_ocean_boundary%wnd(isc:iec,jsc:jec))
+#if defined(ACCESS)
+  allocate ( Ice_ocean_boundary%co2(isc:iec,jsc:jec),               &
+             Ice_ocean_boundary%wnd(isc:iec,jsc:jec), &
+#if defined(ACCESS_CM)
+             !20171024: 2 more fields due to land ice discharge into ocean
+             Ice_ocean_boundary%licefw(isc:iec,jsc:jec), &
+             Ice_ocean_boundary%liceht(isc:iec,jsc:jec))
+#endif
 #endif
 
   Ice_ocean_boundary%u_flux          = 0.0
@@ -413,6 +418,9 @@ program main
 #if defined ACCESS_CM
   Ice_ocean_boundary%co2             = 0.0
   Ice_ocean_boundary%wnd             = 0.0
+  !20171024: 
+  Ice_ocean_boundary%licefw         = 0.0
+  Ice_ocean_boundary%liceht         = 0.0
 #endif
 
   coupler_init_clock = mpp_clock_id('OASIS init', grain=CLOCK_COMPONENT)
@@ -434,10 +442,7 @@ program main
 
 #ifdef ACCESS
      do_sfix_now = .false.
-     !write(stdoutunit,*) 'XXX: in ocean_solo, dt_cpld = ', dt_cpld
      int_sec = (nc-1) * dt_cpld
-     !write(stdoutunit,*) 'XXX: in ocean_solo, nc, int_sec, sfix_hours = ',nc, int_sec, sfix_hours
-     !if (mod(int_sec,sfix_hours*3600) == 0 .and. nc /= 1) do_sfix_now = .true.
      if (mod(int_sec,sfix_hours*3600) == 0 ) do_sfix_now = .true.
 #endif
 
@@ -605,7 +610,7 @@ subroutine external_coupler_sbc_before(Ice_ocean_boundary, Ocean_sfc, nsteps, dt
 
     rtimestep = (nsteps-1) * dt_cpld   ! runtime in this run segment!
     stimestep = rtimestep
-    !call from_coupler( rtimestep, Ocean_sfc, Ice_ocean_boundary )
+    call from_coupler( rtimestep, Ocean_sfc, Ice_ocean_boundary )
     call into_coupler( stimestep, Ocean_sfc, before_ocean_update = .true.)
 end subroutine external_coupler_sbc_before
 
@@ -622,9 +627,7 @@ subroutine external_coupler_sbc_after(Ice_ocean_boundary, Ocean_sfc, nsteps, dt_
     integer                        :: rtimestep ! Receive timestep
     integer                        :: stimestep ! Send timestep
 
-    rtimestep = (nsteps-1) * dt_cpld   ! runtime in this run segment!
-    call from_coupler( rtimestep, Ocean_sfc, Ice_ocean_boundary )
-    stimestep = rtimestep ! nsteps * dt_cpld   ! runtime in this run segment!
+    stimestep = nsteps * dt_cpld   ! runtime in this run segment!
     if (stimestep < num_cpld_calls*dt_cpld) call into_coupler(stimestep, Ocean_sfc, before_ocean_update = .false.)
 end subroutine external_coupler_sbc_after
 
